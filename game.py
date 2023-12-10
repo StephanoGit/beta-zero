@@ -1,11 +1,11 @@
 """Hex Game State."""
 import numpy as np
+from dataclasses import dataclass
 
 class Hex:
     def __init__(self):
         self.size = 11
         self.action_size = self.size ** 2 + 1
-        self.turn = 1
 
     def __repr__(self):
         return "Hex"
@@ -14,7 +14,6 @@ class Hex:
         return np.zeros((self.size, self.size))
 
     def get_next_state(self, state, action, player):
-        self.turn += 1
         if action == self.action_size - 1:
             assert player == -1
             return self._swap(state)
@@ -75,9 +74,8 @@ class Hex:
         return c * self.size + r
 
     def change_perspective(self, state):
-        # Why should we care what player
         if len(state.shape) == 3:
-          return np.swapaxes(state, 1, 2) * -1
+            return np.swapaxes(state, 1, 2) * -1
         assert len(state.shape) == 2
         return state.T * -1
 
@@ -85,10 +83,10 @@ class Hex:
         if player == -1:
             state = self.change_perspective(state)
 
-        my_board = state > 0
-        op_board = state < 0
+        my_board = state == 1
+        op_board = state == -1
         no_board = state == 0
-        can_swap = np.ones_like(my_board) * self.turn == 2
+        can_swap = np.ones_like(my_board) * (np.count_nonzero(my_board) == 1 and np.count_nonzero(op_board) == 0)
 
         encoded_state = np.stack((my_board, op_board, no_board, can_swap)).astype(np.float32)
 
@@ -98,11 +96,11 @@ class Hex:
         return encoded_state
 
     def get_valid_moves(self, state):
-        return np.append((state.reshape(-1) == 0).astype(np.uint8), [self.turn == 2])
+        return np.append((state.reshape(-1) == 0).astype(np.uint8), (np.count_nonzero(state == 1) == 1 and np.count_nonzero(state == -1) == 0))
 
 
     def _swap(self, state):
-        return state * -1
+        return state.T * -1
 
 
     def _neighbours(self, rc):
@@ -146,7 +144,7 @@ class Hex:
                 j = sum - i
                 if j >= self.size:
                     continue
-                print(int(state[j, i]), end=" ")
+                print(no_to_symbol[state[j, i]], end=" ")
             if sum < self.size - 1:
                 print(f"{chr(sum + 66)}")
             else:
@@ -192,14 +190,14 @@ class Hex:
 if __name__ == "__main__":
     moves = open("test.txt").read().splitlines()
     hex = Hex()
-    # hex.debug_game(moves)
+    hex.debug_game(moves)
 
-    state = np.zeros((11, 11))
-    state[:, 0] = 1
-    hex.pretty_please_state(state)
-    print(hex.check_win(state, 0))
-    state = np.zeros((11, 11))
-    state[3, :] = -1
-    state[3, -1] = 1
-    hex.pretty_please_state(state)
-    print(hex.check_win(state, 33))
+    # state = np.zeros((11, 11))
+    # state[:, 0] = 1
+    # hex.pretty_please_state(state)
+    # print(hex.check_win(state, 0))
+    # state = np.zeros((11, 11))
+    # state[3, :] = -1
+    # # state[3, -1] = 1
+    # hex.pretty_please_state(state)
+    # print(hex.check_win(state, 33))

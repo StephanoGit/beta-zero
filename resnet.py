@@ -1,59 +1,66 @@
 """ResNet Module"""
-from tensorflow.keras.layers import *
-from tensorflow.keras.models import Model, Sequential
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import random
+import math
 
-class ResNetBlock(Layer):
-    def __init__(self, hidden_channels):
+class ResNet(nn.Module):
+    def __init__(self, board_size, num_resBlocks, num_hidden, device):
         super().__init__()
 
-        self.sequence = Sequential([
-            Conv2D(hidden_channels, 3, 1, padding='same'),
-            BatchNormalization(),
-            ReLU(),
-
-            Conv2D(hidden_channels, 3, 1, padding='same'),
-            BatchNormalization(),
-            ReLU(),
-        ])
-
-    def forward(self, x):
-        return x + self.sequence(x)
-
-
-class NeuralNet(Layer):
-    def __init__(self, board_size, num_res_blocks, num_hidden):
-        super().__init__()
-
-        self.start_block = Sequential([
-            Conv2D(num_hidden, 3, 1, padding='same'),
-            BatchNormalization(),
-            ReLU()
-        ])
-
-        self.back_bone = Sequential(
-            [ResNetBlock(num_hidden) for i in range(num_res_blocks)]
+        self.device = device
+        self.startBlock = nn.Sequential(
+            nn.Conv2d(4, num_hidden, kernel_size=3, padding=1),
+            nn.BatchNorm2d(num_hidden),
+            nn.ReLU()
         )
 
-        self.policy_head = Sequential([
-            Conv2D(32, 3, 1, padding='same'),
-            BatchNormalization(),
-            ReLU(),
-            Flatten(),
-            Dense(board_size * board_size + 1),
-        ])
+        self.backBone = nn.ModuleList(
+            [ResBlock(num_hidden) for i in range(num_resBlocks)]
+        )
 
-        self.value_head = Sequential([
-            Conv2D(3, 3, 1, padding='same'),
-            BatchNormalization(),
-            ReLU(),
-            Flatten(),
-            Dense(1),
-            Activation('tanh')
-        ])
+        self.policyHead = nn.Sequential(
+            nn.Conv2d(num_hidden, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(32 * board_size * board_size, board_size * board_size + 1)
+        )
+
+        self.valueHead = nn.Sequential(
+            nn.Conv2d(num_hidden, 3, kernel_size=3, padding=1),
+            nn.BatchNorm2d(3),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(3 * board_size * board_size, 1),
+            nn.Tanh()
+        )
+
+        self.to(device)
 
     def forward(self, x):
-        x = self.start_block(x)
-        x = self.back_bone(x)
-        p = self.policy_head(x)
-        v = self.value_head(x)
-        return p, v
+        x = self.startBlock(x)
+        for resBlock in self.backBone:
+            x = resBlock(x)
+        policy = self.policyHead(x)
+        value = self.valueHead(x)
+        return policy, value
+
+
+class ResBlock(nn.Module):
+    def __init__(self, num_hidden):
+        super().__init__()
+        self.conv1 = nn.Conv2d(num_hidden, num_hidden, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(num_hidden)
+        self.conv2 = nn.Conv2d(num_hidden, num_hidden, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(num_hidden)
+
+    def forward(self, x):
+        residual = x
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.bn2(self.conv2(x))
+        x += residual
+        x = F.relu(x)
+        return x
