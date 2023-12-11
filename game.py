@@ -12,7 +12,7 @@ class HexState:
     def play(self, rc):
         # ! Assumes move is valid
         if rc == self.actions - 1:
-            if self.white_played != 1 or self.black_played != 0 or self.player != -1:
+            if self.white_played != 1 or self.black_played != 0:
                 raise ValueError("Cannot swap")
             self.board = self.board.T * -1
         else:
@@ -23,7 +23,6 @@ class HexState:
 
         self.white_played += self.player == 1
         self.black_played += self.player == -1
-
         self.player *= -1
 
     def would_win(self, action):

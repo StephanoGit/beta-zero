@@ -1,5 +1,5 @@
-from mtcs_args import MCTS_ARGS
 from game import HexState
+from args import MCTS_ARGS
 from copy import deepcopy
 from time import time
 from random import choice
@@ -21,6 +21,7 @@ class Node:
         for child in children:
             self.children[child.move] = child
 
+    @property
     def value(self, explore = MCTS_ARGS.EXPLORATION):
         if self.N == 0:
             return 0 if explore == 0 else math.inf
@@ -93,9 +94,16 @@ class UctMctsAgent:
     @staticmethod
     def roll_out(state):
         moves = state.valid_moves
-
         while not state.winner:
             move = choice(moves)
+            if move == 121:
+                if state.white_played != 1 or state.black_played != 0:
+                    moves.remove(move)
+                else:
+                    state.play(move)
+                    moves = state.valid_moves
+                continue
+
             state.play(move)
             moves.remove(move)
 
@@ -131,7 +139,6 @@ class UctMctsAgent:
 
         # if for whatever reason the move is not in the children of
         # the root just throw out the tree and start over
-        print("OH MY DAYS")
         self.root_state.play(move)
         self.root = Node()
 
@@ -152,3 +159,8 @@ class UctMctsAgent:
             for child in node.children.values():
                 q.put(child)
         return count
+
+if __name__ == "__main__":
+   agent = UctMctsAgent()
+   agent.search(2)
+   print(agent.best_move())
