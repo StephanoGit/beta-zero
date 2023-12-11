@@ -1,3 +1,4 @@
+"""Generic MCTS agent class."""
 from game import HexState
 from args import MCTS_ARGS
 from copy import deepcopy
@@ -12,8 +13,6 @@ class Node:
         self.parent = parent
         self.N = 0       # times this position was visited
         self.Q = 0       # average reward (wins-losses) from this position
-        self.Q_RAVE = 0  # times this move has been critical in a rollout
-        self.N_RAVE = 0  # times this move has appeared in a rollout
         self.children = {}
         self.outcome = None
 
@@ -22,20 +21,35 @@ class Node:
             self.children[child.move] = child
 
     @property
-    def value(self, explore = MCTS_ARGS.EXPLORATION):
-        if self.N == 0:
-            return 0 if explore == 0 else math.inf
-        else:
-            # exploitation + exploration
-            return self.Q / self.N + explore * math.sqrt(2 * math.log(self.parent.N) / self.N)
+    def value(self, explore=MCTS_ARGS.EXPLORATION):
+        pass
 
-class UctMctsAgent:
+
+class MCTS:
     def __init__(self, state=HexState()):
         self.root_state = deepcopy(state)
-        self.root = Node()
-        self.run_time = 0  # s?
+        self.run_time = 0
         self.node_count = 0
         self.num_rollouts = 0
+        self.root = None
+
+    @staticmethod
+    def roll_out(state):
+        pass
+
+    @staticmethod
+    def expand(parent, state):
+        pass
+
+    @staticmethod
+    def backup(node, player, *args):
+        pass
+
+    def move(self, move):
+        pass
+
+    def set_gamestate(self, state):
+        pass
 
     def search(self, time_budget):
         start_time = time()
@@ -43,8 +57,7 @@ class UctMctsAgent:
 
         while time() - start_time < time_budget:
             node, state = self.select_node()
-            outcome = self.roll_out(state)
-            self.backup(node, state.player, outcome)
+            self.backup(node, state.player, *self.roll_out(state))
             num_rollouts += 1
 
         run_time = time() - start_time
@@ -53,7 +66,7 @@ class UctMctsAgent:
         self.node_count = node_count
         self.num_rollouts = num_rollouts
 
-    def select_node(self) -> tuple:
+    def select_node(self):
         node = self.root
         state = deepcopy(self.root_state)
 
@@ -79,46 +92,6 @@ class UctMctsAgent:
             state.play(node.move)
         return node, state
 
-    @staticmethod
-    def expand(parent, state):
-        children = []
-        if state.winner:
-            return False
-
-        for move in state.valid_moves:
-            children.append(Node(move, parent))
-
-        parent.add_children(children)
-        return True
-
-    @staticmethod
-    def roll_out(state):
-        moves = state.valid_moves
-        while not state.winner:
-            move = choice(moves)
-            if move == 121:
-                if state.white_played != 1 or state.black_played != 0:
-                    moves.remove(move)
-                else:
-                    state.play(move)
-                    moves = state.valid_moves
-                continue
-
-            state.play(move)
-            moves.remove(move)
-
-        return state.winner
-
-    @staticmethod
-    def backup(node, player, outcome):
-        reward = 0 if outcome == player else 1
-
-        while node is not None:
-            node.N += 1
-            node.Q += reward
-            node = node.parent
-            reward = 0 if reward == 1 else 1
-
     def best_move(self):
         if self.root_state.winner:
             return None
@@ -128,23 +101,6 @@ class UctMctsAgent:
         max_nodes = [n for n in self.root.children.values() if n.N == max_value]
         bestchild = choice(max_nodes)
         return bestchild.move
-
-    def move(self, move):
-        if move in self.root.children:
-            child = self.root.children[move]
-            child.parent = None
-            self.root = child
-            self.root_state.play(child.move)
-            return
-
-        # if for whatever reason the move is not in the children of
-        # the root just throw out the tree and start over
-        self.root_state.play(move)
-        self.root = Node()
-
-    def set_gamestate(self, state):
-        self.root_state = deepcopy(state)
-        self.root = Node()
 
     def statistics(self):
         return self.num_rollouts, self.node_count, self.run_time
@@ -159,8 +115,3 @@ class UctMctsAgent:
             for child in node.children.values():
                 q.put(child)
         return count
-
-if __name__ == "__main__":
-   agent = UctMctsAgent()
-   agent.search(2)
-   print(agent.best_move())

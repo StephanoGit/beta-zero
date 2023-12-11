@@ -1,7 +1,8 @@
 import socket
 from random import choice
 from time import sleep
-from uct import UctMctsAgent
+from agents.uct import UctMctsAgent
+from agents.grave import GRaveMctsAgent
 
 class Agent():
     HOST = "127.0.0.1"
@@ -17,8 +18,11 @@ class Agent():
         self._colour = ""
         self._turn_count = 1
         self._choices = []
-        self.agent = UctMctsAgent()
+        self.agent = GRaveMctsAgent()
         self.player = 0
+        with open("moves.txt", "w") as _:
+            pass
+        self.f = open("moves.txt", "a")
 
         states = {
             1: Agent._connect,
@@ -70,9 +74,12 @@ class Agent():
         """Makes a random valid move. It will choose to swap with
         a coinflip.
         """
-        self.agent.search(2)
+        self.agent.search(3)
         move = self.agent.best_move()
         self.agent.move(move)
+        self.f.write(f"{self.agent.root_state.action_to_str(move)}\n")
+        print("Tree size", self.agent.tree_size())
+        print("rollouts / nodes: ", self.agent.statistics())
 
         if move == 121:
             msg = "SWAP\n"
@@ -96,10 +103,12 @@ class Agent():
         elif data[-1] == self._colour:
             if (data[1] == "SWAP"):
                 self.agent.move(121)
+                self.f.write("swap\n")
             else:
                 r, c = [*map(int, data[1].split(","))]
                 move = r * 11 + c
                 self.agent.move(move)
+                self.f.write(f"{self.agent.root_state.action_to_str(move)}\n")
 
             if (data[-1] == self._colour):
                 return 3
@@ -110,6 +119,7 @@ class Agent():
         """Closes the socket."""
 
         self._s.close()
+        self.f.close()
         return 0
 
     def opp_colour(self):

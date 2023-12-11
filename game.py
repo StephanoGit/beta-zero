@@ -12,7 +12,7 @@ class HexState:
     def play(self, rc):
         # ! Assumes move is valid
         if rc == self.actions - 1:
-            if self.white_played != 1 or self.black_played != 0:
+            if not self.can_swap:
                 raise ValueError("Cannot swap")
             self.board = self.board.T * -1
         else:
@@ -73,8 +73,12 @@ class HexState:
 
     @property
     def valid_moves(self):
-        moves = np.append((self.board.reshape(-1) == 0).astype(np.uint8), self.white_played == 1 and self.black_played == 0)
+        moves = np.append((self.board.reshape(-1) == 0).astype(np.uint8), self.can_swap)
         return [i for i, move in enumerate(moves) if move]
+
+    @property
+    def can_swap(self):
+        return self.white_played == 1 and self.black_played == 0
 
     def neighbours(self, rc):
         """
