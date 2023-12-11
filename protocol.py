@@ -3,6 +3,8 @@ from random import choice
 from time import sleep
 from agents.uct import UctMctsAgent
 from agents.grave import GRaveMctsAgent
+from agents.rave import RaveMctsAgent
+from agents.dm import DMMctsAgent
 
 class Agent():
     HOST = "127.0.0.1"
@@ -18,7 +20,7 @@ class Agent():
         self._colour = ""
         self._turn_count = 1
         self._choices = []
-        self.agent = GRaveMctsAgent()
+        self.agent = DMMctsAgent()
         self.player = 0
         with open("moves.txt", "w") as _:
             pass
@@ -74,12 +76,13 @@ class Agent():
         """Makes a random valid move. It will choose to swap with
         a coinflip.
         """
-        self.agent.search(3)
+        self.agent.search(30)
         move = self.agent.best_move()
-        self.agent.move(move)
-        self.f.write(f"{self.agent.root_state.action_to_str(move)}\n")
         print("Tree size", self.agent.tree_size())
         print("rollouts / nodes: ", self.agent.statistics())
+        self.agent.move(move)
+        self.agent.root_state.pretty_please_state()
+        self.f.write(f"{self.agent.root_state.action_to_str(move)}\n")
 
         if move == 121:
             msg = "SWAP\n"

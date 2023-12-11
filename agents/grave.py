@@ -22,11 +22,15 @@ class GRaveNode(RaveNode):
 
         N_RAVE = self.N_RAVE
         Q_RAVE = self.Q_RAVE
+        alpha = 0
+        AMAF = 0
 
         if self.N_RAVE < ref:
             node = self
+            c = 0
             while node.parent is not None:
-                node = self.parent
+                c += 1
+                node = node.parent
                 if node.N_RAVE >= ref:
                     N_RAVE = node.N_RAVE
                     Q_RAVE = node.Q_RAVE
@@ -39,3 +43,45 @@ class GRaveNode(RaveNode):
 class GRaveMctsAgent(RaveMctsAgent):
     def __init__(self, state=HexState()):
         super().__init__(state)
+
+    @staticmethod
+    def expand(parent, state):
+        children = []
+        if state.winner:
+            return False
+
+        for move in state.valid_moves:
+            children.append(GRaveNode(move, parent))
+
+        parent.add_children(children)
+        return True
+
+    def backup(self, node, player, outcome, moves):
+        reward = outcome * -player
+
+        while node is not None:
+            for move in moves[player]:
+                if move in node.children:
+                    node.children[move].Q_RAVE += -reward
+                    node.children[move].N_RAVE += 1
+
+            node.N += 1
+            node.Q += reward
+            player *= -1
+            reward = -reward
+            node = node.parent
+
+    def move(self, move):
+        if move in self.root.children:
+            child = self.root.children[move]
+            child.parent = None
+            self.root = child
+            self.root_state.play(child.move)
+            return
+
+        self.root_state.play(move)
+        self.root = GRaveNode()
+
+    def set_gamestate(self, state):
+        self.root_state = deepcopy(state)
+        self.root = GRaveNode()
