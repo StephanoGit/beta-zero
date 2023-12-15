@@ -1,16 +1,16 @@
 import socket
+import pandas as pd
 from random import choice
 from time import sleep
-from agents.uct import UctMctsAgent
 from agents.grave import GRaveMctsAgent
-from agents.rave import RaveMctsAgent
-from agents.dm import DMMctsAgent
+from agents.bridget import BridgetMctsAgent
+from game import GameMeta
 
 class Agent():
     HOST = "127.0.0.1"
     PORT = 1234
 
-    def run(self):
+    def run(self, verbose=False, save_file=None, time_per_move=4):
         """A finite-state machine that cycles through waiting for input
         and sending moves.
         """
@@ -20,11 +20,25 @@ class Agent():
         self._colour = ""
         self._turn_count = 1
         self._choices = []
-        self.agent = DMMctsAgent()
-        self.player = 0
-        with open("moves.txt", "w") as _:
-            pass
-        self.f = open("moves.txt", "a")
+        self.agent = BridgetMctsAgent()
+        self.player = GameMeta.PLAYERS["white"]
+        self.dt = time_per_move
+        self.opponent_move = ""
+
+
+        self.f = None
+        if save_file:
+            with open(save_file, "w") as _:
+                pass
+            self.f = open(save_file, "a")
+
+        self.bench = {
+            "rollouts": [],
+            "nodes": [],
+            "moves": [],
+        }
+
+        self.verbose = verbose
 
         states = {
             1: Agent._connect,
@@ -62,10 +76,8 @@ class Agent():
             self._colour = data[2]
 
             if (self._colour == "R"):
-                self.player = 1
                 return 3
             else:
-                self.player = -1
                 return 4
 
         else:
@@ -76,19 +88,29 @@ class Agent():
         """Makes a random valid move. It will choose to swap with
         a coinflip.
         """
-        self.agent.search(30)
+        self.agent.search(self.dt)
         move = self.agent.best_move()
-        print("Tree size", self.agent.tree_size())
-        print("rollouts / nodes: ", self.agent.statistics())
-        self.agent.move(move)
-        self.agent.root_state.pretty_please_state()
-        self.f.write(f"{self.agent.root_state.action_to_str(move)}\n")
 
-        if move == 121:
-            msg = "SWAP\n"
-        else:
-            r, c = move // 11, move % 11
-            msg = f"{r},{c}\n"
+        rollouts, nodes, _ = self.agent.statistics()
+        move_str = self.agent.root_state.action_to_str(move)
+        both_moves = [move_str, self.opponent_move] if self.player == 1 else [self.opponent_move, move_str]
+
+        self.bench["rollouts"].append(rollouts)
+        self.bench["nodes"].append(nodes)
+        self.bench["moves"].append(both_moves)
+
+        self.agent.move(move)
+
+        if self.verbose:
+            print("rollouts / nodes: ", self.agent.statistics())
+            print(self.agent.root_state)
+
+
+        if self.f:
+            self.f.write(f"{move_str}\n")
+
+        r, c = move
+        msg = f"{r},{c}\n"
 
         self._s.sendall(bytes(msg, "utf-8"))
 
@@ -103,14 +125,28 @@ class Agent():
 
         if (data[0] == "END" or data[-1] == "END"):
             return 5
-        elif data[-1] == self._colour:
-            if (data[1] == "SWAP"):
-                self.agent.move(121)
+
+        if (data[1] == "SWAP"):
+            if data[-1] != self._colour:
+                self._colour = data[-1]
+                self.opponent_move = "swap"
+
+                return 3
+
+            self._colour = data[-1]
+            if self.f:
                 self.f.write("swap\n")
-            else:
-                r, c = [*map(int, data[1].split(","))]
-                move = r * 11 + c
-                self.agent.move(move)
+
+            return 4
+
+
+        if data[-1] == self._colour:
+            move = tuple(map(int, data[1].split(",")))
+            self.agent.move(move)
+
+
+            self.opponent_move = self.agent.root_state.action_to_str(move)
+            if self.f:
                 self.f.write(f"{self.agent.root_state.action_to_str(move)}\n")
 
             if (data[-1] == self._colour):
@@ -120,9 +156,15 @@ class Agent():
 
     def _close(self):
         """Closes the socket."""
-
         self._s.close()
-        self.f.close()
+        # print("socket closed")
+        if self.f:
+            self.f.close()
+
+        df = pd.DataFrame(data=self.bench)
+        df.to_csv("~/Programming/uni/AIandGAMES/beta-zero/bench.csv", index=False)
+        print("Benched")
+
         return 0
 
     def opp_colour(self):
@@ -140,4 +182,4 @@ class Agent():
 
 if (__name__ == "__main__"):
     agent = Agent()
-    agent.run()
+    agent.run(verbose=True)

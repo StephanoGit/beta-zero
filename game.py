@@ -1,198 +1,197 @@
-import numpy as np
+from numpy import zeros, int_
+from union import UnionFind
 
-class HexState:
-    def __init__(self):
-        self.size = 11
-        self.actions = self.size * self.size + 1
-        self.player = 1
-        self.board = np.zeros((self.size, self.size), dtype="int8")
+class GameMeta:
+    PLAYERS = {'none': 0, 'white': 1, 'black': 2}
+    INF = float('inf')
+    GAME_OVER = -1
+    EDGE1 = 1
+    EDGE2 = 2
+    NEIGHBOR_PATTERNS = ((-1, 0), (0, -1), (-1, 1), (0, 1), (1, 0), (1, -1))
+    BRIDGE_PATTERNS = ((-1, -1), (1, -2), (2, -1), (1, 1), (-1, 2), (-2, 1))
+
+class GameState:
+    """
+    Stores information representing the current state of a game of hex, namely
+    the board and the current turn. Also provides functions for playing game.
+    """
+    def __init__(self, size):
+        """
+        Initialize the game board and give white first turn.
+        Also create our union find structures for win checking.
+
+        Args:
+            size (int): The board size
+        """
+        self.size = size
+        self.to_play = GameMeta.PLAYERS['white']
+        self.board = zeros((size, size))
+        self.board = int_(self.board)
         self.white_played = 0
         self.black_played = 0
+        white_groups = UnionFind()
+        black_groups = UnionFind()
+        white_groups.set_ignored_elements([GameMeta.EDGE1, GameMeta.EDGE2])
+        black_groups.set_ignored_elements([GameMeta.EDGE1, GameMeta.EDGE2])
 
-    def play(self, rc):
-        # ! Assumes move is valid
-        if rc == self.actions - 1:
-            if not self.can_swap:
-                raise ValueError("Cannot swap")
-            self.board = self.board.T * -1
-        else:
-            r, c = rc // self.size, rc % self.size
-            if self.board[r, c] != 0:
-                raise ValueError("Cell is occupied")
-            self.board[r, c] = self.player
-
-        self.white_played += self.player == 1
-        self.black_played += self.player == -1
-        self.player *= -1
-
-    def would_win(self, action):
-        if action is None or action == self.actions - 1:
-            return False
-
-        r = action // self.size
-        c = action % self.size
-
-        self.board[r, c] = self.player
-        win = self.check_win(self.player)
-        self.board[r, c] = 0
-
-        return win
-
-    @property
-    def winner(self):
-        if self.check_win(1):
-            return 1
-        if self.check_win(-1):
-            return -1
-        return 0
-
-    def check_win(self, player):
-        if player == 1:
-            condition = lambda a: a // self.size == self.size - 1
-        else:
-            condition = lambda a: a % self.size == self.size - 1
-
-        visited = set()
-        def dfs(a):
-            if condition(a):
-                return True
-            if a in visited:
-                return False
-            visited.add(a)
-            for rn, cn in self.neighbours(a):
-                if rn != -1 and self.board[rn, cn] == player and dfs(rn * self.size + cn):
-                    return True
-            return False
-
-        end = range(self.size) if player == 1 else range(0, self.size * self.size - 1, self.size)
-
-        for a in end:
-            if self.board[a // self.size, a % self.size] == player and dfs(a):
-                return True
-        return False
-
-    @property
-    def valid_moves(self):
-        moves = np.append((self.board.reshape(-1) == 0).astype(np.uint8), self.can_swap)
-        return [i for i, move in enumerate(moves) if move]
-
-    @property
-    def can_swap(self):
-        return self.white_played == 1 and self.black_played == 0
-
-    def neighbours(self, rc):
-        """
-            (r-1,c)   (r-1,c+1)
-        (r,c-1)    (r,c)    (r,c+1)
-            (r+1,c-1)   (r+1,c)
-        """
-        r = rc // self.size
-        c = rc % self.size
-
-        rs = np.array([r-1, r-1, r, r+1, r+1, r])
-        cs = np.array([c, c+1, c+1, c, c-1, c-1])
-
-        on_board = (0 <= rs) & (rs < self.size) & (0 <= cs) & (cs < self.size)
-        return np.swapaxes(np.where(on_board, (rs, cs), -1), 0, 1)
-
-
-    def pretty_please_state(self):
-        """Display the current state (nicely)."""
-        no_to_symbol = {
-                -1: "O",
-                0: ".",
-                1: "#"
+        self.groups = {
+            GameMeta.PLAYERS['white']: white_groups,
+            GameMeta.PLAYERS['black']: black_groups,
         }
-        mid_sum = (self.size + self.size - 2) // 2
-        print("            1 A")
-        for sum in range(self.size + self.size - 1):
-            space_no = abs(mid_sum - sum)
-            print(" " * space_no, end="")
-            if sum < self.size - 1:
-                if len(str(sum+2)) < 2:
-                    print(" ", end="")
-                print(f"{sum+2} ", end="")
-            else:
-                print(f" {no_to_symbol[1]} ", end="")
 
-            for i in range(sum + 1):
-                if i >= self.size:
-                    break
-                j = sum - i
-                if j >= self.size:
-                    continue
-                print(no_to_symbol[self.board[j, i]], end=" ")
-            if sum < self.size - 1:
-                print(f"{chr(sum + 66)}")
-            else:
-                print(no_to_symbol[-1])
-        print("            # O")
+        self.bridges = {
+            GameMeta.PLAYERS['white']: set(),
+            GameMeta.PLAYERS['black']: set(),
+        }
 
 
-    def str_to_action(self, p_str: str):
-        """Return action from human-readable position."""
-        if p_str == "swap":
-            return self.actions - 1
+    def play(self, cell: tuple) -> None:
+        """
+        Play a stone of the player that owns the current turn in input cell.
+        Args:
+            cell (tuple): row and column of the cell
+        """
+        if not self.board[cell] == GameMeta.PLAYERS['none']:
+            raise ValueError("Cell occupied")
 
-        col = ord(p_str[0]) - 65
-        row = int(p_str[1:len(p_str)]) - 1
-        return row * self.size + col
+        self.board[cell] = self.to_play
+        self.white_played += self.to_play == GameMeta.PLAYERS['white']
+        self.black_played += self.to_play == GameMeta.PLAYERS['black']
 
-    def action_to_str(self, action):
-        """Return human-readable position from grid position."""
-        if action == self.actions - 1:
-            return "swap"
-        row, col = action // self.size, action % self.size
-        row = row + 1
-        col = chr(65 + col)
-        return col + str(row)
+        rc = int(self.to_play == GameMeta.PLAYERS['black'])
+        if cell[rc] == 0:
+            self.groups[self.to_play].join(GameMeta.EDGE1, cell)
+        if cell[rc] == self.size - 1:
+            self.groups[self.to_play].join(GameMeta.EDGE2, cell)
 
-    def debug_game(self, moves):
-        import os
-        for move in moves:
-            _ = input("Enter for next move...")
-            os.system('clear')
-            action = self.str_to_action(move)
-            if not 0 <= action < self.actions or action not in self.valid_moves:
-                print(f"[ERR]: Invalid move {move} (action: {action})")
-            else:
-                print(f"{self.player} played {move}")
-            print(self.would_win(action))
-            self.play(action)
-            self.pretty_please_state()
+        for n in self.neighbors(cell):
+            if self.board[n] == self.to_play:
+                self.groups[self.to_play].join(n, cell)
 
-def test():
-    hex_state = HexState()
-    hex_state.board[1:, 0] = 1
-    hex_state.pretty_please_state()
-    print(f"Move A1 wins: {hex_state.would_win(0)}")
-    print(f"Move B1 wins: {hex_state.would_win(1)}")
-    print(f"Move C1 wins: {hex_state.would_win(2)}")
-    print(hex_state.winner)
-    hex_state.play(1)
-    print(hex_state.winner)
-    hex_state = HexState()
-    hex_state.board[0, 1:] = -1
-    hex_state.player = -1
-    hex_state.pretty_please_state()
-    print(f"Move A1 wins: {hex_state.would_win(0)}")
-    print(f"Move A2 wins: {hex_state.would_win(11)}")
-    print(f"Move A3 wins: {hex_state.would_win(22)}")
-    print(hex_state.winner)
-    hex_state.play(11)
-    print(hex_state.winner)
+        for b in self.bridge_neighbors(cell):
+            if self.board[b] == GameMeta.PLAYERS['none']:
+                self.bridges[self.to_play].add(cell)
 
+        self.to_play = 3 - self.to_play
 
-def debug(file_name):
-    moves = open(file_name).read().strip().splitlines()
-    hex_state = HexState()
-    hex_state.debug_game(moves)
+    def get_num_played(self) -> dict:
+        return {'white': self.white_played, 'black': self.black_played}
 
+    def would_lose(self, cell: tuple, color: int) -> bool:
+        """
+        Return True is the move indicated by cell and color would lose the game,
+        False otherwise.
+        """
+        connect1 = False
+        connect2 = False
+        rc = int(self.to_play == GameMeta.PLAYERS['black'])
 
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) >= 2:
-        if sys.argv[1] == "test":
-            test()
-        if sys.argv[1] == "debug":
-            debug(sys.argv[2])
+        if cell[rc] == 0:
+            connect1 = True
+        elif cell[rc] == self.size - 1:
+            connect2 = True
+        for n in self.neighbors(cell):
+            if self.groups[color].connected(GameMeta.EDGE1, n):
+                connect1 = True
+            elif self.groups[color].connected(GameMeta.EDGE2, n):
+                connect2 = True
+
+        return connect1 and connect2
+
+    def turn(self) -> int:
+        """
+        Return the player with the next move.
+        """
+        return self.to_play
+
+    def set_turn(self, player: int) -> None:
+        """
+        Set the player to take the next move.
+        Raises:
+            ValueError if player turn is not 1 or 2
+        """
+        if player in GameMeta.PLAYERS.values() and player != GameMeta.PLAYERS['none']:
+            self.to_play = player
+        else:
+            raise ValueError('Invalid turn: ' + str(player))
+
+    @property
+    def winner(self) -> int:
+        """
+        Return a number corresponding to the winning player,
+        or none if the game is not over.
+        """
+        if self.groups[GameMeta.PLAYERS['white']].connected(GameMeta.EDGE1, GameMeta.EDGE2):
+            return GameMeta.PLAYERS['white']
+        if self.groups[GameMeta.PLAYERS['black']].connected(GameMeta.EDGE1, GameMeta.EDGE2):
+            return GameMeta.PLAYERS['black']
+        return GameMeta.PLAYERS['none']
+
+    def neighbors(self, cell: tuple) -> list:
+        """
+        Return list of neighbors of the passed cell.
+
+        Args:
+            cell (tuple):
+        """
+        x, y = cell
+
+        return [(n[0] + x, n[1] + y) for n in GameMeta.NEIGHBOR_PATTERNS
+                if (0 <= n[0] + x < self.size and 0 <= n[1] + y < self.size)]
+
+    def bridge_neighbors(self, cell: tuple) -> list:
+        """
+        Return list of neighbors of the passed cell.
+
+        Args:
+            cell (tuple):
+        """
+        x, y = cell
+
+        return [(n[0] + x, n[1] + y) for n in GameMeta.BRIDGE_PATTERNS
+                if (0 <= n[0] + x < self.size and 0 <= n[1] + y < self.size)]
+
+    def moves(self) -> list:
+        """
+        Get a list of all moves possible on the current board.
+        """
+        moves = []
+        for y in range(self.size):
+            for x in range(self.size):
+                if self.board[x, y] == GameMeta.PLAYERS['none']:
+                    moves.append((x, y))
+        return moves
+
+    def __str__(self):
+        """
+        Print an ascii representation of the game board.
+        Notes:
+            Used for gtp interface
+        """
+        white = 'W'
+        black = 'B'
+        empty = '.'
+        ret = '\n'
+        coord_size = len(str(self.size))
+        offset = 1
+        ret += ' ' * (offset + 1)
+        for x in range(self.size):
+            ret += str(x + 1) + ' ' * offset * 2
+        ret += '\n'
+        for y in range(self.size):
+            ret += chr(ord('A') + y) + ' ' * (offset * 2 + coord_size - len(str(y + 1)))
+            for x in range(self.size):
+                if self.board[x, y] == GameMeta.PLAYERS['white']:
+                    ret += white
+                elif self.board[x, y] == GameMeta.PLAYERS['black']:
+                    ret += black
+                else:
+                    ret += empty
+                ret += ' ' * offset * 2
+            ret += white + "\n" + ' ' * offset * (y + 1)
+        ret += ' ' * (offset * 2 + 1) + (black + ' ' * offset * 2) * self.size
+        return ret
+
+    def action_to_str(self, move):
+        r, c = move
+        return f"{chr(ord('A') + c)}{r + 1}"

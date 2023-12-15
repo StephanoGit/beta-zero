@@ -1,2 +1,2 @@
 # beta-zero
-Alpha-Zero for Hex
+GRAVE MCTS for Hex with bridge heuristic.

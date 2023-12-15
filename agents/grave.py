@@ -1,22 +1,21 @@
-from agents.rave import RaveNode, RaveMctsAgent
-from game import HexState
-from args import MCTS_ARGS
-import math
+from math import sqrt, log
 from copy import deepcopy
 from random import choice, random
-from time import time
+from time import time as clock
+
+from game import GameState
+from mcts import MCTS_ARGS
+from game import GameMeta
+from agents.rave import RaveNode, RaveMctsAgent
 
 class GRaveNode(RaveNode):
-    def __init__(self, move=None, parent=None):
-        super().__init__(move, parent)
-
     @property
     def value(self, explore_weight=MCTS_ARGS.EXPLORATION, rave_const=MCTS_ARGS.RAVE_CONST, ref=MCTS_ARGS.GRAVE_REF):
         # unless explore is set to zero, maximally favor unexplored nodes
         if self.N == 0:
-            return 0 if explore_weight == 0 else math.inf
+            return 0 if explore_weight == 0 else GameMeta.INF
 
-        explore = math.sqrt(2 * math.log(self.parent.N) / self.N)
+        explore = sqrt(2 * log(self.parent.N) / self.N)
         exploit = self.Q / self.N
         UCT = exploit + explore_weight * explore
 
@@ -40,38 +39,13 @@ class GRaveNode(RaveNode):
 
         return (1 - alpha) * UCT + alpha * AMAF
 
+
 class GRaveMctsAgent(RaveMctsAgent):
-    def __init__(self, state=HexState()):
-        super().__init__(state)
+    def set_gamestate(self, state: GameState) -> None:
+        self.root_state = deepcopy(state)
+        self.root = RaveNode()
 
-    @staticmethod
-    def expand(parent, state):
-        children = []
-        if state.winner:
-            return False
-
-        for move in state.valid_moves:
-            children.append(GRaveNode(move, parent))
-
-        parent.add_children(children)
-        return True
-
-    def backup(self, node, player, outcome, moves):
-        reward = outcome * -player
-
-        while node is not None:
-            for move in moves[player]:
-                if move in node.children:
-                    node.children[move].Q_RAVE += -reward
-                    node.children[move].N_RAVE += 1
-
-            node.N += 1
-            node.Q += reward
-            player *= -1
-            reward = -reward
-            node = node.parent
-
-    def move(self, move):
+    def move(self, move: tuple) -> None:
         if move in self.root.children:
             child = self.root.children[move]
             child.parent = None
@@ -79,9 +53,27 @@ class GRaveMctsAgent(RaveMctsAgent):
             self.root_state.play(child.move)
             return
 
+        # if for whatever reason the move is not in the children of
+        # the root just throw out the tree and start over
         self.root_state.play(move)
-        self.root = GRaveNode()
+        self.root = RaveNode()
 
-    def set_gamestate(self, state):
-        self.root_state = deepcopy(state)
-        self.root = GRaveNode()
+    @staticmethod
+    def expand(parent: RaveNode, state: GameState) -> bool:
+        """
+        Generate the children of the passed "parent" node based on the available
+        moves in the passed gamestate and add them to the tree.
+
+        Returns:
+            object:
+        """
+        children = []
+        if state.winner != GameMeta.PLAYERS["none"]:
+            # game is over at this node so nothing to expand
+            return False
+
+        for move in state.moves():
+            children.append(RaveNode(move, parent))
+
+        parent.add_children(children)
+        return True
