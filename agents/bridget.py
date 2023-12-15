@@ -5,10 +5,6 @@ from random import choice
 
 class BridgetMctsAgent(GRaveMctsAgent):
     def roll_out(self, state):
-        """
-        Simulate an entirely random game from the passed state and return the winning
-        player.
-        """
         state = BridgeState(state)
         moves = state.moves()
 

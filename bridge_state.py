@@ -4,9 +4,6 @@ from union import UnionFind
 import random
 
 class BridgeState(GameState):
-    """
-    Game State that additionally tracks bridge connections.
-    """
     bridge_patterns = (((-1,-1), ((-1, 0),( 0,-1))),
                        ((-2, 1), ((-1, 0),(-1, 1))),
                        ((-1, 2), ((-1, 1),( 0, 1))),
@@ -76,13 +73,10 @@ class BridgeState(GameState):
         shuffled_bridge_patterns = list(self.bridge_patterns)
         random.shuffle(shuffled_bridge_patterns)
         for b, (m1, m2) in shuffled_bridge_patterns:
-            c =  (b[0]    + cell[0], b[1]    + cell[1])  # potential connection
-            m1 = (m1[0] + cell[0], m1[1] + cell[1])      # associated bridge pair
+            c =  (b[0]    + cell[0], b[1]    + cell[1])
+            m1 = (m1[0] + cell[0], m1[1] + cell[1])
             m2 = (m2[0] + cell[0], m2[1] + cell[1])
 
-
-            # if the potential connection is out of bounds need only check for bridge
-            # connections with player owned edges
             if c[0] < 0 or c[0] >= self.size or c[1] < 0 or c[1] >= self.size:
                 if m1[0] < 0 or m1[0] >= self.size or m1[1] < 0 or m1[1] >= self.size or \
                    m2[0] < 0 or m2[0] >= self.size or m2[1] < 0 or m2[1] >= self.size:
@@ -96,27 +90,16 @@ class BridgeState(GameState):
                 else:
                     continue
 
-
-            # if the two cells invloved in the bridge pair are not both empty there
-            # is no bridge connection
             if not (self.board[m1] == self.board[m2] == GameMeta.PLAYERS["none"]):
                 continue
 
-            # if we don't control the potential connected cell there is no
-            # bridge connection
             if not (c == GameMeta.EDGE1 or c == GameMeta.EDGE2 or self.board[c] == player):
                 continue
 
-            #if either of the two cells in the bridge pair is involved in another
-            #bridge connection, we cannot also involve it in this one
             if m1 in pairs or m2 in pairs:
                 continue
 
-            #join the newly bridge-connected groups
             if self.groups[player].join(cell, c):
-                # add the associated bridge pair to the pairs dictionary
-                # unless the groups are already the same in which case this connection
-                # is redundant
                 self.set_bridge(m1, m2, player)
                 assert self.board[m1] == self.board[m2] == 0
 
@@ -140,10 +123,6 @@ class BridgeState(GameState):
 
 
     def bridge_winner(self):
-        """
-        Return a number corresponding to the winning player (including wins by
-        virtual connection), or none if the game is not over.
-        """
         if self.groups[GameMeta.PLAYERS['white']].connected(GameMeta.EDGE1, GameMeta.EDGE2):
             return GameMeta.PLAYERS["white"]
         if self.groups[GameMeta.PLAYERS['black']].connected(GameMeta.EDGE1, GameMeta.EDGE2):

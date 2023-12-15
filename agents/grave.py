@@ -11,7 +11,6 @@ from agents.rave import RaveNode, RaveMctsAgent
 class GRaveNode(RaveNode):
     @property
     def value(self, explore_weight=MCTS_ARGS.EXPLORATION, rave_const=MCTS_ARGS.RAVE_CONST, ref=MCTS_ARGS.GRAVE_REF):
-        # unless explore is set to zero, maximally favor unexplored nodes
         if self.N == 0:
             return 0 if explore_weight == 0 else GameMeta.INF
 
@@ -53,20 +52,11 @@ class GRaveMctsAgent(RaveMctsAgent):
             self.root_state.play(child.move)
             return
 
-        # if for whatever reason the move is not in the children of
-        # the root just throw out the tree and start over
         self.root_state.play(move)
         self.root = RaveNode()
 
     @staticmethod
     def expand(parent: RaveNode, state: GameState) -> bool:
-        """
-        Generate the children of the passed "parent" node based on the available
-        moves in the passed gamestate and add them to the tree.
-
-        Returns:
-            object:
-        """
         children = []
         if state.winner != GameMeta.PLAYERS["none"]:
             # game is over at this node so nothing to expand

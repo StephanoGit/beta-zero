@@ -9,7 +9,6 @@ SWAP_MATRIX[3:8, :] = 1
 SWAP_MATRIX[8, 1:-1] = 1
 SWAP_MATRIX[9, 0:2] = 1
 SWAP_MATRIX[10, 0] = 1
-SWAP_MATRIX = SWAP_MATRIX
 
 class GameMeta:
     PLAYERS = {'none': 0, 'white': 1, 'black': 2}
@@ -22,18 +21,7 @@ class GameMeta:
     SWAP_MATRIX = SWAP_MATRIX
 
 class GameState:
-    """
-    Stores information representing the current state of a game of hex, namely
-    the board and the current turn. Also provides functions for playing game.
-    """
     def __init__(self, size):
-        """
-        Initialize the game board and give white first turn.
-        Also create our union find structures for win checking.
-
-        Args:
-            size (int): The board size
-        """
         self.size = size
         self.to_play = GameMeta.PLAYERS['white']
         self.board = zeros((size, size))
@@ -57,11 +45,6 @@ class GameState:
 
 
     def play(self, cell: tuple) -> None:
-        """
-        Play a stone of the player that owns the current turn in input cell.
-        Args:
-            cell (tuple): row and column of the cell
-        """
         if not self.board[cell] == GameMeta.PLAYERS['none']:
             raise ValueError("Cell occupied")
 
@@ -88,11 +71,7 @@ class GameState:
     def get_num_played(self) -> dict:
         return {'white': self.white_played, 'black': self.black_played}
 
-    def would_lose(self, cell: tuple, color: int) -> bool:
-        """
-        Return True is the move indicated by cell and color would lose the game,
-        False otherwise.
-        """
+    def would_win(self, cell: tuple, color: int) -> bool:
         connect1 = False
         connect2 = False
         rc = int(self.to_play == GameMeta.PLAYERS['black'])
@@ -110,17 +89,9 @@ class GameState:
         return connect1 and connect2
 
     def turn(self) -> int:
-        """
-        Return the player with the next move.
-        """
         return self.to_play
 
     def set_turn(self, player: int) -> None:
-        """
-        Set the player to take the next move.
-        Raises:
-            ValueError if player turn is not 1 or 2
-        """
         if player in GameMeta.PLAYERS.values() and player != GameMeta.PLAYERS['none']:
             self.to_play = player
         else:
@@ -128,10 +99,6 @@ class GameState:
 
     @property
     def winner(self) -> int:
-        """
-        Return a number corresponding to the winning player,
-        or none if the game is not over.
-        """
         if self.groups[GameMeta.PLAYERS['white']].connected(GameMeta.EDGE1, GameMeta.EDGE2):
             return GameMeta.PLAYERS['white']
         if self.groups[GameMeta.PLAYERS['black']].connected(GameMeta.EDGE1, GameMeta.EDGE2):
@@ -139,33 +106,18 @@ class GameState:
         return GameMeta.PLAYERS['none']
 
     def neighbors(self, cell: tuple) -> list:
-        """
-        Return list of neighbors of the passed cell.
-
-        Args:
-            cell (tuple):
-        """
         x, y = cell
 
         return [(n[0] + x, n[1] + y) for n in GameMeta.NEIGHBOR_PATTERNS
                 if (0 <= n[0] + x < self.size and 0 <= n[1] + y < self.size)]
 
     def bridge_neighbors(self, cell: tuple) -> list:
-        """
-        Return list of neighbors of the passed cell.
-
-        Args:
-            cell (tuple):
-        """
         x, y = cell
 
         return [(n[0] + x, n[1] + y) for n in GameMeta.BRIDGE_PATTERNS
                 if (0 <= n[0] + x < self.size and 0 <= n[1] + y < self.size)]
 
     def moves(self) -> list:
-        """
-        Get a list of all moves possible on the current board.
-        """
         moves = []
         for y in range(self.size):
             for x in range(self.size):
@@ -174,11 +126,6 @@ class GameState:
         return moves
 
     def __str__(self):
-        """
-        Print an ascii representation of the game board.
-        Notes:
-            Used for gtp interface
-        """
         white = 'W'
         black = 'B'
         empty = '.'

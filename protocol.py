@@ -98,7 +98,11 @@ class Agent():
 
                 return 4
 
-        self.agent.search(self.dt)
+        if 4 < self._turn_count < 10:
+            self.agent.search(self.dt * 2)
+        else:
+            self.agent.search(self.dt)
+
         move = self.agent.best_move()
 
         rollouts, nodes, _ = self.agent.statistics()
