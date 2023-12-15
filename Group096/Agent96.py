@@ -97,7 +97,7 @@ class Agent():
 
                 return 4
 
-        if 4 < self._turn_count < 10:
+        if 8 < self._turn_count < 20:
             self.agent.search(self.dt * 2)
         else:
             self.agent.search(self.dt)
