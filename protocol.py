@@ -18,7 +18,7 @@ class Agent():
         self._board_size = 0
         self._board = []
         self._colour = ""
-        self._turn_count = 1
+        self._turn_count = 0
         self._choices = []
         self.agent = BridgetMctsAgent()
         self.player = GameMeta.PLAYERS["white"]
@@ -88,6 +88,16 @@ class Agent():
         """Makes a random valid move. It will choose to swap with
         a coinflip.
         """
+        if self._turn_count == 1 and self._colour == "B":
+            move = self.agent.root_state.str_to_action(self.opponent_move)
+            if GameMeta.SWAP_MATRIX[move]:
+                self._s.sendall(bytes("SWAP", "utf-8"))
+                self.bench["rollouts"].append(None)
+                self.bench["nodes"].append(None)
+                self.bench["moves"].append([self.opponent_move, "swap"])
+
+                return 4
+
         self.agent.search(self.dt)
         move = self.agent.best_move()
 
@@ -127,13 +137,12 @@ class Agent():
             return 5
 
         if (data[1] == "SWAP"):
-            if data[-1] != self._colour:
-                self._colour = data[-1]
+            if self._colour == "R":
+                self._colour = "B"
                 self.opponent_move = "swap"
-
                 return 3
 
-            self._colour = data[-1]
+            self._colour = "R"
             if self.f:
                 self.f.write("swap\n")
 
@@ -162,8 +171,7 @@ class Agent():
             self.f.close()
 
         df = pd.DataFrame(data=self.bench)
-        df.to_csv("~/Programming/uni/AIandGAMES/beta-zero/bench.csv", index=False)
-        print("Benched")
+        # df.to_csv("~/Programming/uni/AIandGAMES/beta-zero/bench.csv", index=False)
 
         return 0
 
@@ -182,4 +190,4 @@ class Agent():
 
 if (__name__ == "__main__"):
     agent = Agent()
-    agent.run(verbose=True)
+    agent.run()

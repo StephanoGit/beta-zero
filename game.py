@@ -1,6 +1,16 @@
 from numpy import zeros, int_
 from union import UnionFind
 
+SWAP_MATRIX = zeros((11, 11))
+SWAP_MATRIX[0, -1] = 1
+SWAP_MATRIX[1, -2:] = 1
+SWAP_MATRIX[2, 1:-1] = 1
+SWAP_MATRIX[3:8, :] = 1
+SWAP_MATRIX[8, 1:-1] = 1
+SWAP_MATRIX[9, 0:2] = 1
+SWAP_MATRIX[10, 0] = 1
+SWAP_MATRIX = SWAP_MATRIX
+
 class GameMeta:
     PLAYERS = {'none': 0, 'white': 1, 'black': 2}
     INF = float('inf')
@@ -9,6 +19,7 @@ class GameMeta:
     EDGE2 = 2
     NEIGHBOR_PATTERNS = ((-1, 0), (0, -1), (-1, 1), (0, 1), (1, 0), (1, -1))
     BRIDGE_PATTERNS = ((-1, -1), (1, -2), (2, -1), (1, 1), (-1, 2), (-2, 1))
+    SWAP_MATRIX = SWAP_MATRIX
 
 class GameState:
     """
@@ -176,10 +187,10 @@ class GameState:
         offset = 1
         ret += ' ' * (offset + 1)
         for x in range(self.size):
-            ret += str(x + 1) + ' ' * offset * 2
+            ret += chr(ord('A') + x) + ' ' * offset * 2
         ret += '\n'
         for y in range(self.size):
-            ret += chr(ord('A') + y) + ' ' * (offset * 2 + coord_size - len(str(y + 1)))
+            ret += str(y + 1) + ' ' * (offset * 2 + coord_size - len(str(y + 1)))
             for x in range(self.size):
                 if self.board[x, y] == GameMeta.PLAYERS['white']:
                     ret += white
@@ -194,4 +205,9 @@ class GameState:
 
     def action_to_str(self, move):
         r, c = move
-        return f"{chr(ord('A') + c)}{r + 1}"
+        return f"{chr(ord('A') + r)}{c + 1}"
+
+    def str_to_action(self, s):
+        r = ord(s[0]) - 65
+        c = int(s[1]) - 1
+        return (r, c)
